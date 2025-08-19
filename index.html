@@ -1,0 +1,720 @@
+<!DOCTY    :root{
+      --bg:#000; --fg:#fff; --accent:#ff8c32; --muted:#8b8b8b;
+      --fontSize:64px; --lineHeight:1.4; --hMargin:10vw; --vMargin:8vh; --lead:40vh; --speed:3; --barH:56px; /* altura aprox. da barra inferior para compensar margem inferior */ /* nível (1–10) */
+    }tml>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Teleprompter HTML5 – MVP</title>
+  <style>
+    :root{
+  --bg:#000; --fg:#fff; --accent:#ff8c32; --muted:#8b8b8b;
+  --fontSize:64px; --lineHeight:1.4; --hMargin:10vw; --vMargin:8vh; --lead:40vh; --speed:3; --barH:56px; /* altura aprox. da barra inferior para compensar margem inferior */ /* nível (1–10) */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;}
+    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; background:var(--bg); color:var(--fg);}
+
+    .app{display:grid; grid-template-columns: 320px 1fr; height:100dvh;}
+    @media(max-width: 980px){ .app{grid-template-columns: 1fr} .panel{position:fixed; inset:auto 0 0 0; height:340px; border-top:1px solid #222; grid-row:2} .viewport{grid-row:1}}
+
+    .panel{background:#0c0c0c; border-right:1px solid #141414; padding:16px; overflow:hidden; touch-action: manipulation; -webkit-user-select: none; user-select: none; padding-bottom:16px; overscroll-behavior: none;}
+    .panel h2{margin:12px 0 8px; font-size:14px; color:#bbb; letter-spacing:.04em; text-transform:uppercase}
+    .panel .row{display:flex; align-items:center; gap:10px; margin:12px 0}
+    .panel label{font-size:14px; color:#ddd; flex:1}
+    .panel .row.right{justify-content:flex-end}
+    .panel input[type="range"]{width:100%}
+    .panel textarea{width:100%; background:#111; border:1px solid #222; color:#fff; border-radius:8px; padding:10px; touch-action: manipulation}
+    .panel button, .floating button{appearance:none; border:0; border-radius:12px; padding:10px 14px; background:#1a1a1a; color:#fff; font-weight:600; cursor:pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent}
+    .panel .row button{padding:8px 12px; font-size:14px; min-width:32px}
+    .panel .row button:disabled{opacity:0.4; cursor:not-allowed; pointer-events:none}
+    .panel .hint{font-size:12px; color:#8a8a8a}
+
+  .viewport{position:relative; overflow:hidden;}
+  .scroll{position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain;}
+  .page{min-height:100%; padding-top:var(--vMargin); padding-right:var(--hMargin); padding-left:var(--hMargin); padding-bottom:calc(var(--vMargin) + var(--barH)); display:flex; flex-direction:column; align-items:center}
+
+  /* Espaçadores para o texto surgir na tela */
+  .lead{ flex:0 0 auto; width:100%; height:var(--lead); }
+
+    #reader{ width:100%; max-width: 1200px; font-size:var(--fontSize); line-height:var(--lineHeight); font-weight:700; letter-spacing:.02em; }
+    #reader.inverted{ transform: scaleY(-1); transform-origin:center center; }
+    #reader.upper{ text-transform:uppercase }
+
+    /* espelhamento dinâmico - removido */
+
+    /* overlay de contagem regressiva */
+    .countdown{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); z-index:40; font-size:12vw; font-weight:800 }
+    .countdown.show{ display:flex }
+
+    /* barra flutuante - posicionada apenas sobre a área do texto */
+    .floating{ position:fixed; bottom:16px; left:320px; right:0; margin:0 auto; width:fit-content; background:rgba(20,20,20,.9); border:1px solid #2a2a2a; border-radius:16px; padding:6px 10px; display:flex; gap:8px; z-index:30; align-items:center }
+    @media(max-width: 980px){ .floating{ left:0; right:0; } } /* Em telas pequenas ocupa toda a largura */
+    .floating .sep{width:1px; height:20px; background:#2c2c2c}
+    .floating .value{font:600 12px/1.6 system-ui; color:#ddd; min-width:32px; text-align:center}
+    .floating button.icon{ font-size:16px; padding:10px 12px }
+    .floating button.toggled{ background:var(--accent); color:#000 }
+    .floating button{ touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+  /* Permitir rolagem por toque (tablet) na área de leitura */
+  .no-gestures{ touch-action: pan-y !important; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
+    .ghost{position:fixed; inset:0; pointer-events:none; opacity:0}
+
+    /* —— Modo Tela Cheia real —— */
+    :fullscreen .panel,
+    .fullscreen .panel{ display:none !important; }
+    :fullscreen .app,
+    .fullscreen .app{ grid-template-columns: 1fr !important; }
+    :fullscreen .floating,
+    .fullscreen .floating{ display:none !important; }
+    /* Em tela cheia / foco, a margem inferior volta a ser apenas vMargin (barra não aparece) */
+    :fullscreen .page, .fullscreen .page, .focus .page{ padding-bottom: var(--vMargin) !important; }
+
+    /* —— Modo Foco (fallback sem Fullscreen API) —— */
+    .focus .panel{ display:none !important; }
+    .focus .app{ grid-template-columns: 1fr !important; }
+    .focus .floating{ display:none !important; }
+  
+    /* Botão fechar FS */
+    .fs-exit{ position:fixed; top:12px; right:12px; background:rgba(20,20,20,.9); border:1px solid #2a2a2a; color:#fff; border-radius:12px; padding:10px 12px; font-weight:700; z-index:60; display:none }
+    :fullscreen .fs-exit, .fullscreen .fs-exit, .focus .fs-exit{ display:block }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="panel" id="panel">
+      <h2>Texto</h2>
+      
+      
+
+      <!-- Texto -->
+      <textarea id="editor" rows="10" placeholder="Cole seu texto aqui..."></textarea>
+      <div class="row right">
+        <button id="btnClear">Limpar</button>
+      </div>
+
+      <!-- Configurações após Script -->
+      
+
+      <h2>Aparência</h2>
+      <div class="row"><label>Maiúscula</label><input id="toggleUpper" type="checkbox"></div>
+      
+      <div class="row"><label>Tamanho (px)</label><button id="fontSizeDown">−</button><span id="fontSizeVal" class="value">64</span><button id="fontSizeUp">+</button></div>
+      <div class="row"><label>Entrelinha</label><button id="lineHeightDown">−</button><span id="lineHeightVal" class="value">1.4</span><button id="lineHeightUp">+</button></div>
+      <div class="row"><label>Margem lateral</label><button id="hMarginDown">−</button><span id="hMarginVal" class="value">15</span><button id="hMarginUp">+</button></div>
+
+      <h2>Comandos</h2>
+      <div class="row"><span class="hint">Espaço: Play/Pause · PgDn: acelera · PgUp: freia · ↑/↓: velocidade · Reiniciar ajusta ao início da direção</span></div>
+    </aside>
+
+    <main class="viewport">
+      <div class="scroll" id="scroll">
+        <div class="page">
+          <div class="lead lead-top" aria-hidden="true"></div>
+          <div id="reader"></div>
+          <div class="lead lead-bottom" aria-hidden="true"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="floating" id="bar">
+    <button id="playPause" class="icon" title="Play/Pause">▶︎</button>
+    <div class="sep"></div>
+    <button id="slower" title="Velocidade −">−</button>
+    <div class="value" id="speedInfo">3</div>
+    <button id="faster" title="Velocidade +">+</button>
+    <div class="sep"></div>
+    <button id="restart">Reiniciar</button>
+    <button id="btnInvert" class="icon" title="Inverter direção e texto">🔄</button>
+    <div class="sep"></div>
+    <button id="btnFullscreen">Tela cheia</button>
+  </div>
+  <button id="btnExitFS" class="fs-exit" aria-label="Fechar tela cheia">✕</button>
+
+  <div class="countdown" id="countdown">3</div>
+  <video id="nosleep" class="ghost" playsinline muted loop preload="auto"></video>
+
+  <script>
+    // --- Estado e utilitários ---
+    const $ = sel => document.querySelector(sel);
+    const state = {
+      running:false,
+      speed: parseInt(localStorage.getItem('tp_speed')||getComputedStyle(document.documentElement).getPropertyValue('--speed')) || 3, // nível 1–10
+      dir: parseInt(localStorage.getItem('tp_dir')||'1'), // 1 = para cima (texto normal), -1 = para baixo (texto invertido)
+      lastTs:0, rafId:null,
+      wakeLock:null, countingDown:false,
+      pixelAccumulator: 0 // acumulador para movimento fracionário suave
+    };
+
+    // Elementos
+    const scrollEl = $('#scroll');
+    const reader = $('#reader');
+    const editor = $('#editor');
+    const countdown = $('#countdown');
+
+    // Config elementos
+    const fontSize = null; // removido - agora são botões
+    const lineHeight = null; // removido - agora são botões  
+    const hMargin = null; // removido - agora são botões
+    const speed = $('#speed');
+    const btnInvert = $('#btnInvert');
+
+    const setVar = (name, val) => document.documentElement.style.setProperty(name, val);
+    const fmt = (n,unit='')=> `${n}${unit}`;
+
+    // —— Detecção simples de tablet (iPad/Android) & bloqueio de gestos na área de leitura ——
+    const isIpad = (/iPad|Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const isTablet = isIpad || (isAndroid && navigator.maxTouchPoints > 0);
+    function lockGesturesOnTablet(){
+      if(!isTablet) return;
+      // Habilita rolagem vertical natural por toque, com inércia
+      scrollEl.classList.remove('no-gestures');
+      scrollEl.style.touchAction = 'pan-y';
+      scrollEl.style.webkitOverflowScrolling = 'touch';
+      scrollEl.style.overscrollBehavior = 'contain';
+      // Não bloqueia eventos de toque para permitir rolagem
+      // (Opcional) bloquear apenas gestos de pinça em iOS Safari; Chrome Android não utiliza estes eventos
+      ['gesturestart','gesturechange','gestureend'].forEach(type=>{
+        scrollEl.addEventListener(type, (e)=>e.preventDefault(), {passive:false});
+      });
+      
+      // Bloqueia gestos de pinça no painel lateral também
+      const panel = $('#panel');
+      if(panel){
+        panel.style.touchAction = 'manipulation';
+        ['gesturestart','gesturechange','gestureend'].forEach(type=>{
+          panel.addEventListener(type, (e)=>e.preventDefault(), {passive:false});
+        });
+      }
+    }
+
+    // Detecta rolagem manual e pausa o teleprompter dependendo de onde acontece
+    function setupScrollPauseDetection(){
+      const panel = $('#panel');
+      
+      // Bloqueia completamente a rolagem no painel lateral
+      panel.addEventListener('wheel', (e) => {
+        e.preventDefault(); // impede a rolagem da página
+        if(state.running){
+          state.running = false;
+          const playPauseBtn = $('#playPause');
+          if(playPauseBtn) playPauseBtn.textContent = '▶︎';
+        }
+      }, {passive: false});
+      
+      panel.addEventListener('touchmove', (e) => {
+        e.preventDefault(); // impede a rolagem por toque
+        if(state.running){
+          state.running = false;
+          const playPauseBtn = $('#playPause');
+          if(playPauseBtn) playPauseBtn.textContent = '▶︎';
+        }
+      }, {passive: false});
+      
+      panel.addEventListener('touchstart', (e) => {
+        if(state.running){
+          state.running = false;
+          const playPauseBtn = $('#playPause');
+          if(playPauseBtn) playPauseBtn.textContent = '▶︎';
+        }
+      }, {passive: true});
+      
+      // Na área do texto (scrollEl), permite rolagem sem pausar automaticamente
+      // (o usuário pode pausar manualmente se quiser)
+    }
+
+    // Exibe e normaliza a velocidade
+    function updateSpeedDisplay(){
+      const v = Math.max(1, Math.min(10, Number(state.speed)||3));
+      state.speed = v;
+      const elVal = document.getElementById('speedVal');
+      const elInfo = document.getElementById('speedInfo');
+      if(elVal) elVal.textContent = v;
+      if(elInfo) elInfo.textContent = v;
+      if(speed) speed.value = v;
+      localStorage.setItem('tp_speed', String(v));
+    }
+
+    // ===== EASING + rolagem suave (para saltos curtos) =====
+    function easeInOutQuad(t){
+      return t < 0.5 ? 2*t*t : -1 + (4 - 2*t)*t;
+    }
+    function smoothScrollBy(delta){
+      const start = scrollEl.scrollTop;
+      const duration = 400; // ms
+      let startTime = null;
+      function animate(time){
+        if(!startTime) startTime = time;
+        const elapsed = time - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        scrollEl.scrollTop = start + delta * easeInOutQuad(progress);
+        if(progress < 1) requestAnimationFrame(animate);
+      }
+      requestAnimationFrame(animate);
+    }
+
+    // ===== Aceleração contínua (para segurar PgUp/PgDn) =====
+    let accelActive = false;
+    let currentAccel = 0;
+    let accelDirection = 0; // 1 = PageDown (a favor), -1 = PageUp (contra)
+    // Tap curto -> salto com easing; segurar -> aceleração contínua
+    const TAP_THRESHOLD_MS = 200;   // até 200ms conta como "toque rápido"
+    const JUMP_PX = 700;            // tamanho do salto (px)
+    let pgDownStart = 0;
+    let pgUpStart = 0;
+    function startScrollAcceleration(direction){
+      accelActive = true;
+      currentAccel = 0;
+      accelDirection = direction;
+      function accelStepFunc(){
+        if(!accelActive) return;
+        currentAccel = Math.min(currentAccel + 5, 200); // limite 200px por frame
+        // Velocidade absoluta idêntica nos dois sentidos
+        const accelDelta = accelDirection * state.dir * currentAccel;
+        scrollEl.scrollTop += accelDelta;
+        requestAnimationFrame(accelStepFunc);
+      }
+      requestAnimationFrame(accelStepFunc);
+    }
+    function stopScrollAcceleration(){
+      accelActive = false;
+      currentAccel = 0;
+      accelDirection = 0;
+    }
+
+    // Carregar preferências
+    function loadPrefs(){
+      const prefs = JSON.parse(localStorage.getItem('tp_prefs')||'{}');
+      const defaults = {fontSize:64, lineHeight:1.4, hMargin:15, upper:false};
+      const p = Object.assign(defaults, prefs);
+      
+      // Atualiza valores e display
+      setVar('--fontSize', fmt(p.fontSize,'px')); $('#fontSizeVal').textContent=p.fontSize;
+      setVar('--lineHeight', p.lineHeight); $('#lineHeightVal').textContent=p.lineHeight;
+      const hm = Math.max(10, Math.min(30, p.hMargin)); setVar('--hMargin', fmt(hm,'vw')); $('#hMarginVal').textContent=hm;
+      $('#toggleUpper').checked = p.upper; reader.classList.toggle('upper', p.upper);
+      
+      // Atualiza orientação do texto baseado na direção
+      reader.classList.toggle('inverted', state.dir < 0);
+      if(speed) speed.value = state.speed; 
+      const elVal=document.getElementById('speedVal'); 
+      const elInfo=document.getElementById('speedInfo'); 
+      if(elVal) elVal.textContent=state.speed; 
+      if(elInfo) elInfo.textContent=state.speed;
+      updateInvertButton();
+    }
+
+    function savePrefs(){
+      // Obtém valores atuais das variáveis CSS
+      const currentFontSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--fontSize')) || 64;
+      const currentLineHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lineHeight')) || 1.4;
+      const currentHMargin = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hMargin')) || 15;
+      
+      const prefs = {
+        fontSize: currentFontSize,
+        lineHeight: currentLineHeight,
+        hMargin: currentHMargin,
+        upper: $('#toggleUpper').checked
+      };
+      localStorage.setItem('tp_prefs', JSON.stringify(prefs));
+      localStorage.setItem('tp_speed', String(state.speed));
+      localStorage.setItem('tp_dir', String(state.dir));
+    }
+
+    // Atualiza estado visual do botão inverter
+    function updateInvertButton(){
+      if(!btnInvert) return;
+      btnInvert.classList.toggle('toggled', state.dir < 0);
+      btnInvert.title = state.dir < 0 ? 'Modo invertido (texto de cabeça para baixo, rola para baixo)' : 'Modo normal (texto legível, rola para cima)';
+    }
+
+    // Sincronizar editor -> reader
+    function render(){
+      const txt = editor.value || 'Bem-vindo! Cole seu texto acima.\n\nDicas:\n• Espaço: Play/Pause\n• PgDn: acelera (segue a direção)\n• PgUp: freia (não inverte)\n• ↑/↓: ajustar velocidade (1–10)\n• F: Tela cheia (ou Modo Foco no iOS Chrome)\n• Enter: Reiniciar (vai para o início da direção).';
+      reader.innerHTML = txt
+        .replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))
+        .replace(/\n\n/g,'</p><p>')
+        .replace(/\n/g,'<br>');
+      if(!reader.firstChild){ reader.innerHTML = '<p></p>'; }
+      if(reader.firstChild && reader.firstChild.tagName !== 'P') reader.innerHTML = '<p>'+reader.innerHTML+'</p>';
+    }
+
+    // Persistência do texto
+    editor.value = localStorage.getItem('tp_text')||'';
+    editor.addEventListener('input', ()=>{ localStorage.setItem('tp_text', editor.value); render(); });
+
+    // Controles de UI - Botões de ajuste
+    // Tamanho da fonte
+    $('#fontSizeUp').addEventListener('click', ()=>{ 
+      const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--fontSize')) || 64;
+      if(current < 44) { // só funciona se não atingiu o máximo
+        const newSize = Math.min(44, current + 4);
+        setVar('--fontSize', newSize+'px'); 
+        $('#fontSizeVal').textContent=newSize; 
+        savePrefs(); 
+        updateFontSizeButtons(); // atualiza estado dos botões
+      }
+    });
+    $('#fontSizeDown').addEventListener('click', ()=>{ 
+      const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--fontSize')) || 64;
+      if(current > 24) { // só funciona se não atingiu o mínimo
+        const newSize = Math.max(24, current - 4);
+        setVar('--fontSize', newSize+'px'); 
+        $('#fontSizeVal').textContent=newSize; 
+        savePrefs(); 
+        updateFontSizeButtons(); // atualiza estado dos botões
+      }
+    });
+    
+    // Entrelinha
+    $('#lineHeightUp').addEventListener('click', ()=>{ 
+      const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lineHeight')) || 1.4;
+      if(current < 2.5) { // só funciona se não atingiu o máximo
+        const newHeight = Math.min(2.5, Math.round((current + 0.1) * 10) / 10);
+        setVar('--lineHeight', newHeight); 
+        $('#lineHeightVal').textContent=newHeight; 
+        savePrefs(); 
+        updateLineHeightButtons(); // atualiza estado dos botões
+      }
+    });
+    $('#lineHeightDown').addEventListener('click', ()=>{ 
+      const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lineHeight')) || 1.4;
+      if(current > 1.0) { // só funciona se não atingiu o mínimo
+        const newHeight = Math.max(1.0, Math.round((current - 0.1) * 10) / 10);
+        setVar('--lineHeight', newHeight); 
+        $('#lineHeightVal').textContent=newHeight; 
+        savePrefs(); 
+        updateLineHeightButtons(); // atualiza estado dos botões
+      }
+    });
+    
+    // Atualiza estado dos botões de margem lateral
+    function updateMarginButtons(){
+      const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hMargin')) || 15;
+      const btnUp = $('#hMarginUp');
+      const btnDown = $('#hMarginDown');
+      
+      // Desabilita botão + se atingir máximo (30)
+      if(current >= 30){
+        btnUp.disabled = true;
+      } else {
+        btnUp.disabled = false;
+      }
+      
+      // Desabilita botão - se atingir mínimo (10)
+      if(current <= 10){
+        btnDown.disabled = true;
+      } else {
+        btnDown.disabled = false;
+      }
+    }
+
+    // Atualiza estado dos botões de entrelinhas
+    function updateLineHeightButtons(){
+      const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lineHeight')) || 1.5;
+      const btnUp = $('#lineHeightUp');
+      const btnDown = $('#lineHeightDown');
+      
+      // Desabilita botão + se atingir máximo (2.5)
+      if(current >= 2.5){
+        btnUp.disabled = true;
+      } else {
+        btnUp.disabled = false;
+      }
+      
+      // Desabilita botão - se atingir mínimo (1.0)
+      if(current <= 1.0){
+        btnDown.disabled = true;
+      } else {
+        btnDown.disabled = false;
+      }
+    }
+
+    // Atualiza estado dos botões de tamanho da fonte
+    function updateFontSizeButtons(){
+      const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--fontSize')) || 32;
+      const btnUp = $('#fontSizeUp');
+      const btnDown = $('#fontSizeDown');
+      
+      // Desabilita botão + se atingir máximo (44)
+      if(current >= 44){
+        btnUp.disabled = true;
+      } else {
+        btnUp.disabled = false;
+      }
+      
+      // Desabilita botão - se atingir mínimo (24)
+      if(current <= 24){
+        btnDown.disabled = true;
+      } else {
+        btnDown.disabled = false;
+      }
+    }
+
+    // Margem lateral
+    // Margem lateral
+    $('#hMarginUp').addEventListener('click', ()=>{ 
+      const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hMargin')) || 15;
+      if(current < 30) { // só funciona se não atingiu o máximo
+        const newMargin = Math.min(30, current + 1);
+        setVar('--hMargin', newMargin+'vw'); 
+        $('#hMarginVal').textContent=newMargin; 
+        updateMarginButtons(); // atualiza estado dos botões
+        savePrefs(); 
+      }
+    });
+    $('#hMarginDown').addEventListener('click', ()=>{ 
+      const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hMargin')) || 15;
+      if(current > 10) { // só funciona se não atingiu o mínimo
+        const newMargin = Math.max(10, current - 1);
+        setVar('--hMargin', newMargin+'vw'); 
+        $('#hMarginVal').textContent=newMargin; 
+        updateMarginButtons(); // atualiza estado dos botões
+        savePrefs(); 
+      }
+    });
+
+    if(speed){ speed.addEventListener('input', ()=>{ state.speed = +speed.value; const elVal=document.getElementById('speedVal'); const elInfo=document.getElementById('speedInfo'); if(elVal) elVal.textContent=state.speed; if(elInfo) elInfo.textContent=state.speed; savePrefs(); }); }
+
+    $('#toggleUpper').addEventListener('change', (e)=>{ reader.classList.toggle('upper', e.target.checked); savePrefs(); });
+
+
+    // Limpar
+    $('#btnClear').addEventListener('click', ()=>{ if(confirm('Limpar texto?')) { editor.value=''; editor.dispatchEvent(new Event('input')); }});
+
+    // --- Leitura: animação base (constante) ---
+    function step(ts){
+      if(!state.running){ state.lastTs = ts; state.rafId = requestAnimationFrame(step); return; }
+      
+      // Movimento fracionário suave - velocidades em pixels por frame
+      const speedMap = [0, 0.33, 0.4, 0.5, 0.6, 0.75, 0.9, 1.1, 1.3, 1.6, 2.0]; // pixels por frame
+      const pixelsPerFrame = speedMap[state.speed] || 0.5;
+      
+      // Acumula movimento fracionário
+      state.pixelAccumulator += pixelsPerFrame;
+      
+      // Só move quando acumular pelo menos 1 pixel
+      if(Math.abs(state.pixelAccumulator) >= 1) {
+        const pixelsToMove = Math.floor(Math.abs(state.pixelAccumulator)) * state.dir;
+        scrollEl.scrollTop += pixelsToMove;
+        state.pixelAccumulator = state.pixelAccumulator % 1; // mantém a parte fracionária
+      }
+      
+      // Para conforme a direção
+      if(state.dir > 0){
+        if(scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 2){ toggleRun(false); }
+      } else {
+        if(scrollEl.scrollTop <= 2){ toggleRun(false); }
+      }
+      state.rafId = requestAnimationFrame(step);
+    }
+
+    function toggleRun(run){
+      // Durante contagem regressiva, não permite iniciar; permite apenas pausar
+      if(state.countingDown){
+        if(run === false){
+          state.running = false;
+          if (typeof playPauseBtn !== 'undefined') playPauseBtn.textContent = '▶︎';
+        }
+        return;
+      }
+      const nextRunning = (run !== undefined) ? run : !state.running;
+      // Se vamos iniciar e estamos numa extremidade, reposiciona conforme a direção
+      if(nextRunning){
+        const atTop = scrollEl.scrollTop <= 2;
+        const atBottom = (scrollEl.scrollTop + scrollEl.clientHeight) >= (scrollEl.scrollHeight - 2);
+        if(state.dir > 0 && atBottom){
+          // texto normal rolando para cima: se estiver no fim, volta ao início (topo)
+          scrollEl.scrollTop = 0;
+        } else if(state.dir < 0 && atTop){
+          // texto invertido rolando para baixo: se estiver no topo, vai para o fundo  
+          scrollEl.scrollTop = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+        }
+      }
+      state.running = nextRunning;
+      playPauseBtn.textContent = state.running ? '⏸' : '▶︎';
+      if(state.running){ requestWakeLock(); }
+    }
+
+    function restartWithCountdown(){
+      // pausa tudo e prepara contagem
+      stopScrollAcceleration();
+      state.countingDown = true;
+      toggleRun(false);
+      
+      // Ativa tela cheia automaticamente
+      const el = document.documentElement;
+      if(!document.fullscreenElement && !document.body.classList.contains('focus')){
+        if(supportsFullscreen()){
+          el.requestFullscreen?.();
+        } else {
+          // Fallback para iOS Chrome: Modo Foco
+          document.body.classList.add('focus');
+          setTimeout(()=> window.scrollTo(0,1), 50);
+        }
+      }
+      
+      // posiciona conforme a direção
+      if(state.dir > 0){
+        // texto normal rolando para cima: começa do topo (onde está o "Olá")
+        scrollEl.scrollTop = 0;
+      } else {
+        // texto invertido rolando para baixo: começa do fundo
+        scrollEl.scrollTop = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+      }
+      countdown.textContent = '3';
+      countdown.classList.add('show');
+      let n = 3;
+      const id = setInterval(()=>{
+        n--;
+        countdown.textContent = n>0 ? String(n) : '🎬';
+        if(n<=0){
+          clearInterval(id);
+          setTimeout(()=>{
+            countdown.classList.remove('show');
+            state.countingDown = false;
+            toggleRun(true);
+          }, 300);
+        }
+      }, 700);
+    }
+
+    // Wake Lock (quando suportado)
+    async function requestWakeLock(){
+      try{ if('wakeLock' in navigator){ state.wakeLock = await navigator.wakeLock.request('screen'); state.wakeLock.addEventListener('release',()=>{}); } }catch(e){}
+    }
+
+    // Teclado — play/velocidade/rolagem com aceleração + saltos
+    function onKey(e) {
+      const k = e.key;
+      if (['ArrowUp','ArrowDown','PageUp','PageDown',' ','Enter','Home','End','f','F'].includes(k)) e.preventDefault();
+      // Durante contagem regressiva, bloqueia comandos (exceto alternar tela cheia)
+      if(state.countingDown){
+        if(k==='f' || k==='F'){ toggleFullscreen(); }
+        return;
+      }
+      switch (k){
+        case ' ': toggleRun(); break;
+        case 'ArrowUp': state.speed = Math.min(10, state.speed+1); if(speed) speed.value=state.speed; break;
+        case 'ArrowDown': state.speed = Math.max(1, state.speed-1); if(speed) speed.value=state.speed; break;
+        case 'PageDown': if(!accelActive){ pgDownStart = performance.now(); startScrollAcceleration(+1); } break;
+        case 'PageUp': if(!accelActive){ pgUpStart = performance.now(); startScrollAcceleration(-1); } break;
+        case 'Home': scrollEl.scrollTop = 0; break;
+        case 'End': scrollEl.scrollTop = scrollEl.scrollHeight; break;
+        case 'Enter': restartWithCountdown(); break;
+        case 'f': case 'F': toggleFullscreen(); break;
+      }
+      updateSpeedDisplay(); savePrefs();
+    }
+    window.addEventListener('keydown', onKey);
+
+    window.addEventListener('keyup', (e)=>{
+      if(e.key === 'PageDown' || e.key === 'PageUp'){
+        if(state.countingDown){ stopScrollAcceleration(); return; }
+        const now = performance.now();
+        const started = e.key === 'PageDown' ? pgDownStart : pgUpStart;
+        const elapsed = started ? (now - started) : Infinity;
+        stopScrollAcceleration();
+        if(elapsed <= TAP_THRESHOLD_MS){
+          const dir = e.key === 'PageDown' ? +1 : -1;
+          smoothScrollBy(dir * state.dir * JUMP_PX);
+        }
+      }
+    });
+
+    // Botões flutuantes (com suporte a toque no iOS/Android)
+    const playPauseBtn = $('#playPause');
+    function addBtnTap(el, fn){
+      if(!el) return;
+      const handler = (e)=>{ e.preventDefault(); fn(e); };
+      if (window.PointerEvent) {
+        // Usa apenas pointerup quando disponível (evita click duplicado no desktop)
+        el.addEventListener('pointerup', handler);
+      } else if ('ontouchend' in window) {
+        // Fallback para navegadores touch sem PointerEvent
+        el.addEventListener('touchend', handler, {passive:false});
+      } else {
+        // Desktop antigo: apenas click
+        el.addEventListener('click', handler);
+      }
+    }
+
+    addBtnTap(playPauseBtn, ()=> toggleRun());
+    addBtnTap($('#slower'), ()=>{ state.speed=Math.max(1,state.speed-1); updateSpeedDisplay(); savePrefs(); });
+    addBtnTap($('#faster'), ()=>{ state.speed=Math.min(10,state.speed+1); updateSpeedDisplay(); savePrefs(); });
+    addBtnTap($('#restart'), restartWithCountdown);
+
+    // Botão Inverter
+    addBtnTap(btnInvert, ()=>{
+      // Para aceleração e mantém estado de execução
+      stopScrollAcceleration();
+      const wasRunning = state.running;
+      // Inverte direção e orientação do texto
+      state.dir = state.dir > 0 ? -1 : 1;
+      reader.classList.toggle('inverted', state.dir < 0);
+      updateInvertButton();
+      savePrefs();
+      
+      // Posiciona conforme o novo modo
+      if(state.dir > 0){
+        // texto normal: posiciona "Olá" embaixo (topo do scroll)
+        scrollEl.scrollTop = 0;
+      } else {
+        // texto invertido: posiciona no fundo
+        scrollEl.scrollTop = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+      }
+      
+      // Mantém estado de execução
+      if(wasRunning){ toggleRun(true); }
+    });
+
+    // Fullscreen + Foco
+    function supportsFullscreen(){
+      return !!(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+    }
+    function toggleFullscreen(){
+      const el = document.documentElement;
+      if(supportsFullscreen()){
+        if(!document.fullscreenElement){ el.requestFullscreen?.(); }
+        else{ document.exitFullscreen?.(); }
+      } else {
+        // Fallback para iOS Chrome: Modo Foco
+        document.body.classList.toggle('focus');
+        setTimeout(()=> window.scrollTo(0,1), 50);
+      }
+    }
+    addBtnTap($('#btnFullscreen'), toggleFullscreen);
+
+    // Ao entrar/sair de tela cheia real, sincroniza classe
+    document.addEventListener('fullscreenchange', ()=>{
+      if(document.fullscreenElement){ document.body.classList.add('fullscreen'); }
+      else{ document.body.classList.remove('fullscreen'); }
+    });
+
+    // Inicializar
+    loadPrefs();
+    render();
+    updateSpeedDisplay();
+    updateInvertButton();
+    updateMarginButtons(); // inicializa estado dos botões de margem
+    updateLineHeightButtons(); // inicializa estado dos botões de entrelinhas
+    updateFontSizeButtons(); // inicializa estado dos botões de tamanho
+    // Desabilita gestos em tablets na área de leitura
+    lockGesturesOnTablet();
+    // Configura detecção de rolagem para pausar no painel lateral
+    setupScrollPauseDetection();
+    state.rafId = requestAnimationFrame(step);
+
+    // Botão de fechar em Tela Cheia / Foco
+    function exitFullscreenOrFocus(){
+      if(document.fullscreenElement){ document.exitFullscreen?.(); return; }
+      if(document.body.classList.contains('focus')){ document.body.classList.remove('focus'); }
+    }
+    document.getElementById('btnExitFS').addEventListener('click', exitFullscreenOrFocus);
+  </script>
+</body>
+</html>
