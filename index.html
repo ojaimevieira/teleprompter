@@ -1,2 +1,55 @@
-<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" name="viewport"/><meta content="#0b0b0c" name="theme-color"/><title>Teleprompter MixLabs</title><link href="styles.css" rel="stylesheet"/></head><body><div class="app"><aside class="panel" id="panel"><div class="head"><span class="logo"><b>T</b>Teleprompter</span><button class="close" id="close">×</button></div><div class="settings"><section><div class="label"><label for="editor">Roteiro</label><span id="stats">0 palavras</span></div><textarea id="editor" placeholder="Cole ou escreva seu roteiro…"></textarea><div class="actions"><button id="sample">Texto de teste</button><button class="danger" id="clear">Limpar</button></div></section><section><div class="label">Leitura</div><div class="row">Tamanho <span class="step"><button data-d="-4" data-k="font">−</button><output id="font">60</output><button data-d="4" data-k="font">+</button></span></div><div class="row">Entrelinha <span class="step"><button data-d="-.05" data-k="line">−</button><output id="line">1.45</output><button data-d=".05" data-k="line">+</button></span></div><div class="row">Margens <span class="step"><button data-d="-1" data-k="margin">−</button><output id="margin">12</output><button data-d="1" data-k="margin">+</button></span></div><div class="row">Linha-guia <span class="step"><button data-d="-5" data-k="cue">−</button><output id="cueOut">50</output><button data-d="5" data-k="cue">+</button></span></div><div class="row">Maiúsculas <label class="switch"><input id="upper" type="checkbox"/><i></i></label></div><div class="row">Espelhar horizontal <label class="switch"><input id="mirror" type="checkbox"/><i></i></label></div></section><section><div class="label">Histórico local</div><div class="history" id="history"></div></section><section class="help">Arraste o texto para navegar · Espaço: play · ↑/↓: velocidade · R: reiniciar · F: foco</section></div></aside><main class="stage"><button class="edit" id="edit">Editar</button><div class="scroll" id="scroll"><div class="page"><article class="reader" id="reader"></article></div></div><div class="cue"></div><nav class="hud"><button class="play" id="play">▶</button><button id="slow">−</button><span class="speed" id="speed">3</span><button id="fast">+</button><button id="restart">↺ <span class="word">Reiniciar</span></button><button id="focus">⛶ <span class="word">Tela cheia</span></button></nav><div class="progress" id="progress"></div></main></div><div class="count" id="count">3</div><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#0b0b0c">
+  <title>Teleprompter MixLabs</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="panel" id="panel" aria-label="Editor e configurações">
+      <header class="head">
+        <span class="logo"><b>T</b>Teleprompter</span>
+        <div class="head-actions">
+          <button class="icon-button" id="helpButton" aria-label="Abrir dicas" title="Dicas de uso" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.3 2.3 0 1 1 3.4 2c-.8.5-1.2 1-1.2 2M12 17h.01"/></svg></button>
+          <button class="icon-button close" id="close" aria-label="Fechar editor" title="Fechar editor">×</button>
+        </div>
+        <aside class="popover help-popover" id="helpPopover" hidden><strong>Controles rápidos</strong><p>Arraste o texto para navegar. O toque pausa a leitura.</p><p><kbd>Espaço</kbd> play/pause · <kbd>↑</kbd><kbd>↓</kbd> velocidade · <kbd>R</kbd> reiniciar · <kbd>F</kbd> foco</p></aside>
+      </header>
+      <div class="settings">
+        <section class="editor-section">
+          <div class="label"><label for="editor">Roteiro</label><span id="stats">0 palavras · 0s</span></div>
+          <textarea id="editor" spellcheck="true" placeholder="Cole ou escreva seu roteiro…"></textarea>
+          <div class="actions">
+            <div class="action-group"><button class="icon-button" id="historyButton" aria-label="Abrir histórico" title="Histórico de roteiros" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button><button id="sample">Texto de teste</button></div>
+            <button class="danger" id="clear">Limpar</button>
+            <aside class="popover history-popover" id="historyPopover" hidden><div class="popover-head"><strong>Histórico local</strong><span>Até 12 roteiros</span></div><div class="history" id="history"></div></aside>
+          </div>
+        </section>
+        <section class="reading-section">
+          <div class="label">Leitura</div>
+          <div class="control-grid">
+            <div class="row">Tamanho <span class="step"><button data-k="font" data-d="-2" aria-label="Diminuir tamanho">−</button><output id="font">36</output><button data-k="font" data-d="2" aria-label="Aumentar tamanho">+</button></span></div>
+            <div class="row">Entrelinha <span class="step"><button data-k="line" data-d="-.05" aria-label="Diminuir entrelinha">−</button><output id="line">1.40</output><button data-k="line" data-d=".05" aria-label="Aumentar entrelinha">+</button></span></div>
+            <div class="row">Margens <span class="step"><button data-k="margin" data-d="-1" aria-label="Diminuir margens">−</button><output id="margin">20</output><button data-k="margin" data-d="1" aria-label="Aumentar margens">+</button></span></div>
+            <div class="row">Linha-guia <span class="step"><button data-k="cue" data-d="-5" aria-label="Subir linha-guia">−</button><output id="cueOut">50</output><button data-k="cue" data-d="5" aria-label="Descer linha-guia">+</button></span></div>
+            <div class="row">Maiúsculas <label class="switch"><input id="upper" type="checkbox"><i></i></label></div>
+            <div class="row">Espelhar <label class="switch"><input id="mirror" type="checkbox"><i></i></label></div>
+          </div>
+        </section>
+      </div>
+    </aside>
+    <main class="stage">
+      <button class="edit" id="edit">Editar</button>
+      <div class="scroll" id="scroll"><div class="page"><article class="reader" id="reader"></article></div></div>
+      <div class="cue" aria-hidden="true"></div>
+      <nav class="hud" aria-label="Controles do teleprompter"><button class="play" id="play" aria-label="Iniciar">▶</button><button id="slow" aria-label="Diminuir velocidade">−</button><span class="speed" id="speed">4</span><button id="fast" aria-label="Aumentar velocidade">+</button><button id="restart">↺ <span class="word">Reiniciar</span></button><button id="focus">⛶ <span class="word">Tela cheia</span></button></nav>
+      <div class="progress" id="progress"></div>
+    </main>
+  </div>
+  <div class="count" id="count">3</div>
+  <script src="app.js"></script>
+</body>
+</html>
